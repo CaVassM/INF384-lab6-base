@@ -113,7 +113,7 @@ Implementar `POST /habilitados` con sus validaciones de seguridad y los gates de
   - Si `src/util/formato.js` deja la cobertura global por debajo de 80 %, crear `tests/formato.test.js` con tests de sus funciones puras, sin lógica nueva, en lugar de excluir el archivo.
   - _Requisitos: 5.1_
 
-- [ ] 9. Completar `TRAZABILIDAD.md` (pendiente: se redacta aparte, con los links de los runs)
+- [x] 9. Completar `TRAZABILIDAD.md` (pendiente: se redacta aparte, con los links de los runs)
   - Una fila por requisito no funcional (hallazgos 1 a 3, cobertura, SCA, secretos), con gate o test, bloquea o avisa, etapa y links al run fallido y al corregido.
   - Los dos cambios a la propuesta de Kiro.
   - No ejecutar esta tarea con Kiro.
