@@ -2,42 +2,50 @@
 
 ## Overview
 
-El endpoint `POST /habilitados` recibe la lista de códigos de cursos que un alumno ya aprobó y devuelve todos los cursos del catálogo que ese alumno puede matricular a continuación. Un curso es **habilitado** cuando (a) ninguno de sus prerequisitos está pendiente y (b) el alumno todavía no lo ha aprobado. Los cursos sin prerequisitos siempre cumplen la condición (a).
+`POST /habilitados` recibe los códigos de los cursos que un alumno ya aprobó y devuelve los cursos del catálogo que puede llevar a continuación. Un curso está **habilitado** cuando (a) todos sus prerequisitos están en `aprobados` (un curso sin prerequisitos cumple siempre esta condición) y (b) el propio curso no está en `aprobados`.
 
-Todos los datos del catálogo se obtienen de `repositorio.js` a través de `listar()`, que lee `data/cursos.json` una sola vez al arrancar. El endpoint no escribe ni altera estado.
+Los datos se leen con `repositorio.listar()`, que carga `data/cursos.json` una sola vez al arrancar. El endpoint no escribe ni altera estado.
+
+El diseño responde a tres hallazgos de seguridad del prototipo anterior:
+
+| Hallazgo | Causa | Respuesta del diseño |
+| --- | --- | --- |
+| 1. 5 000 códigos dejaron el servicio sin responder 40 s | No había límite de tamaño | Límite de 4 KB en `express.json` → 413 (Requisito 3) |
+| 2. `1INF30<script>` provocó un 500 con stack trace y ruta | No se validaba el formato del código y el manejador de errores devolvía el stack | Validación `^[A-Z0-9]{5,6}$` → 400 sin reflejar el valor (Req. 2.6); 500 genérico sin detalles internos (Req. 4) |
+| 3. `{"aprobados": "1INF25"}` respondió 200 con resultados incorrectos | No se validaba el tipo | Validación de tipo del campo y de sus elementos → 400 (Req. 2.3 a 2.5) |
 
 ### Diagrama de secuencia
 
 ```mermaid
 sequenceDiagram
     actor Cliente
-    participant Express
-    participant bodyLimit as Middleware bodyLimit
-    participant jsonParser as express.json()
-    participant Ruta as Ruta /habilitados
+    participant Parser as express.json (limit 4kb)
+    participant Ruta as routes/habilitados.js
     participant Repo as repositorio.js
+    participant Err as errorHandler global
 
-    Cliente->>Express: POST /habilitados
-    Express->>bodyLimit: verifica tamaño del body
-    alt body > 4 KB
-        bodyLimit-->>Cliente: 413 {"error":"solicitud demasiado grande"}
+    Cliente->>Parser: POST /habilitados
+    alt Content-Type JSON y cuerpo mayor a 4 KB
+        Parser->>Err: error entity.too.large
+        Err-->>Cliente: 413 solicitud demasiado grande
+    else Content-Type JSON y JSON invalido
+        Parser->>Err: error entity.parse.failed
+        Err-->>Cliente: 400 body invalido
+    else cuerpo aceptado (o Content-Type no JSON: no se parsea)
+        Parser->>Ruta: req.body
     end
-    Express->>jsonParser: parsea JSON
-    alt Content-Type != application/json
-        jsonParser-->>Cliente: 415 {"error":"content-type debe ser application/json"}
+    alt Content-Type distinto de application/json
+        Ruta-->>Cliente: 415 content-type debe ser application/json
     end
-    alt JSON invalido
-        jsonParser-->>Cliente: 400 {"error":"body invalido"}
-    end
-    Express->>Ruta: req.body disponible
-    Ruta->>Ruta: valida aprobados (campo, tipo, elementos, formato, tamaño)
+    Ruta->>Ruta: valida aprobados (campo, tipo, elementos, formato)
     alt validacion falla
-        Ruta-->>Cliente: 400/415 con mensaje de error
+        Ruta-->>Cliente: 400 con mensaje fijo
     end
     Ruta->>Repo: listar()
-    Repo-->>Ruta: cursos[]
-    Ruta->>Ruta: calcula cursos habilitados
-    Ruta-->>Cliente: 200 [Curso_Habilitado, ...]
+    Repo-->>Ruta: cursos
+    Ruta->>Ruta: calcula habilitados y proyecta 5 campos
+    Ruta-->>Cliente: 200 arreglo de cursos
+    Note over Ruta,Err: cualquier excepcion llega a next(err) y el errorHandler responde 500 error interno
 ```
 
 ---
@@ -47,30 +55,35 @@ sequenceDiagram
 ### Archivos nuevos
 
 | Archivo | Responsabilidad |
-|---------|-----------------|
-| `src/routes/habilitados.js` | Lógica de validación y cálculo del endpoint `POST /habilitados`. |
+| --- | --- |
+| `src/routes/habilitados.js` | Validación de la entrada y cálculo de los cursos habilitados. |
+| `tests/habilitados.test.js` | Tests con supertest sobre `src/app.js` para cada criterio de aceptación. |
 
 ### Archivos modificados
 
 | Archivo | Cambio |
-|---------|--------|
-| `src/app.js` | Registrar el middleware `bodyLimit` antes de `express.json()` y montar `require('./routes/habilitados')` en `/habilitados`. |
-| `jest.config.js` | Agregar `coverageThreshold` para forzar ≥ 80 % de líneas en CI. |
-| `.github/workflows/ci.yml` | Agregar los pasos de `npm audit` y `gitleaks`, y pasar `--coverage` a `npm test`. |
+| --- | --- |
+| `src/app.js` | Cambiar `express.json()` por `express.json({ limit: '4kb' })` y montar el router en `/habilitados`. No se agrega ningún middleware `bodyLimit` aparte. |
+| Middleware de errores global (`src/app.js`, tarea 3 de `consulta-cursos`) | Traducir `err.type`: `entity.too.large` → 413, `entity.parse.failed` → 400, cualquier otro error → 500 genérico. |
+| `jest.config.js` | Agregar `coverageThreshold` global de 80 % en líneas. |
+| `package.json` / `package-lock.json` | Subir `lodash` de `4.17.20` a `4.18.1`, la versión que propone `npm audit` para corregir la vulnerabilidad alta. |
+| `config/ejemplo.env` | Reemplazar `CATALOGO_API_KEY` por un valor de ejemplo y registrar el fingerprint del hallazgo histórico en `.gitleaksignore` con su razón. |
+| `.github/workflows/ci.yml` | Agregar los jobs de SCA y de detección de secretos, pasar `--coverage` a `npm test` y agregar un disparador semanal programado. |
 
 ### Archivos sin cambios
 
-`src/data/repositorio.js`, `src/routes/cursos.js`, `src/util/formato.js`, `src/server.js`, `data/cursos.json`.
+`src/data/repositorio.js`, `src/server.js`, `data/cursos.json`.
 
 ### Diagrama de componentes
 
 ```mermaid
 graph LR
-    A[app.js] -->|monta| B[routes/habilitados.js]
+    A[app.js] -->|express.json 4kb| P[parser]
+    A -->|monta| B[routes/habilitados.js]
     A -->|monta| C[routes/cursos.js]
-    B -->|listar()| D[data/repositorio.js]
+    B -->|listar| D[data/repositorio.js]
     D -->|lee| E[data/cursos.json]
-    A -->|errorHandler global| F[500 sin stack trace]
+    A -->|errorHandler global| F[413 / 400 / 500 sin detalles internos]
 ```
 
 ---
@@ -82,272 +95,171 @@ graph LR
 ```
 Router de Express con un único handler: POST /
 
-Interfaz pública:
-  module.exports → Express Router
-
 Dependencias:
   require('../data/repositorio') → { listar }
 
 Funciones internas:
-  validarAprobados(aprobados) → { ok: boolean, status: number, error: string }
-    Aplica las validaciones en orden (tabla de Validaciones).
-    Devuelve { ok: true } si todos los checks pasan.
+  validarAprobados(body) → { ok: true, aprobados } | { ok: false, status, error }
+    Aplica las validaciones 4 a 7 de la tabla de validaciones, en orden.
 
-  calcularHabilitados(aprobadosSet, todos) → Curso[]
-    Recibe el Set deduplicado y la lista completa de cursos.
+  calcularHabilitados(aprobadosSet, todos) → Curso_Habilitado[]
     Devuelve los cursos habilitados proyectados a { id, name, credits, cycle, type }.
 ```
 
-### `src/app.js` — cambios
-
-```
-Antes de express.json():
-  app.use(bodyLimitMiddleware)   ← responde 413 si body > 4 096 bytes
-
-Después de los routers existentes:
-  app.use('/habilitados', require('./routes/habilitados'))
-```
-
-### Contrato HTTP del endpoint
+### Contrato HTTP
 
 ```
 POST /habilitados
 Content-Type: application/json
+Cuerpo:  { "aprobados": string[] }
 
-Body de entrada:
-  { "aprobados": string[] }
-
-Respuesta 200:
-  [
-    { "id": string, "name": string, "credits": number, "cycle": number|null, "type": string },
-    ...
-  ]
-
-Respuestas de error:
-  400 { "error": string }   — validación fallida
-  413 { "error": "solicitud demasiado grande" }
-  415 { "error": "content-type debe ser application/json" }
-  500 { "error": "error interno" }  — manejado por errorHandler global
+200  [ { "id": string, "name": string, "credits": number, "cycle": number|null, "type": string }, ... ]
+400  { "error": string }
+413  { "error": "solicitud demasiado grande" }
+415  { "error": "content-type debe ser application/json" }
+500  { "error": "error interno" }
 ```
 
 ---
 
 ## Data Models
 
-### Curso (del catálogo — `data/cursos.json`)
+### Curso (catálogo, `data/cursos.json`)
 
 ```
-{
-  id:            string        — código único, ej. "1INF25"
-  name:          string        — nombre del curso
-  credits:       number        — créditos académicos
-  cycle:         number | null — ciclo (5–10) o null para electivos
-  type:          string        — "obligatorio" | "electivo"
-  prerequisites: string[]      — códigos de cursos prerequisito
-}
+{ id, name, credits, cycle: number|null, type: "obligatorio"|"electivo", prerequisites: string[] }
 ```
 
-### Curso_Habilitado (respuesta de `POST /habilitados`)
+### Curso_Habilitado (respuesta)
 
 ```
-{
-  id:      string
-  name:    string
-  credits: number
-  cycle:   number | null
-  type:    string
-}
+{ id, name, credits, cycle, type }
 ```
 
-Solo se proyectan los cinco campos del contrato. El campo `prerequisites` del catálogo no se incluye en la respuesta.
+Se proyectan solo estos cinco campos, igual que `GET /cursos`. El campo `prerequisites` no se incluye.
 
-### Algoritmo de cálculo
-
-El cálculo es una operación pura sobre los datos del catálogo.
+### Algoritmo
 
 ```
-función calcularHabilitados(aprobados: string[]) → Curso_Habilitado[]
-
-  // 1. Deduplicar (silenciosamente) y convertir a Set para lookups O(1)
-  aprobadosSet ← new Set(aprobados)
-
-  // 2. Verificar límite de tamaño (aplica al Set deduplicado)
-  si aprobadosSet.size > 500:
-    devolver error 400 "aprobados excede el límite permitido"
-
-  // 3. Obtener todos los cursos del catálogo
-  todos ← repositorio.listar()
-
-  // 4. Filtrar
+calcularHabilitados(aprobados):
+  aprobadosSet ← new Set(aprobados)            // deduplica
   habilitados ← []
-  para cada curso en todos:
-    si curso.id está en aprobadosSet → continuar   // ya aprobado → excluir
-    si curso.prerequisites.length > 0:
-      si algún prereq NO está en aprobadosSet → continuar  // falta prereq → excluir
-    habilitados.append(curso)
-
-  // 5. Proyectar solo los campos del contrato
-  devolver habilitados.map(c → { id, name, credits, cycle, type })
+  para cada curso en repositorio.listar():
+    si curso.id está en aprobadosSet → continuar              // ya aprobado
+    si algún prerequisito NO está en aprobadosSet → continuar // falta un requisito
+    habilitados.push(curso proyectado a 5 campos)
+  devolver habilitados
 ```
 
-La complejidad es **O(C × P)** donde C = 87 cursos y P = máximo de prerequisitos por curso. Con los datos actuales es prácticamente lineal en C.
+`[].every()` devuelve `true`, por lo que un curso sin prerequisitos pasa el filtro sin caso especial.
 
 ### Validaciones y orden de ejecución
 
-Las validaciones se ejecutan en orden estricto. El primer fallo detiene el procesamiento.
+Se aplican en este orden. El primer fallo detiene el procesamiento y devuelve ese error.
 
-| # | Capa | Condición | HTTP | Cuerpo de respuesta |
-|---|------|-----------|------|---------------------|
-| 1 | Middleware `bodyLimit` | Cuerpo > 4 096 bytes | 413 | `{"error":"solicitud demasiado grande"}` |
-| 2 | `express.json()` | `Content-Type` ≠ `application/json` | 415 | `{"error":"content-type debe ser application/json"}` |
-| 3 | `express.json()` | Cuerpo no es JSON válido | 400 | `{"error":"body inválido"}` |
-| 4 | Ruta | Campo `aprobados` ausente | 400 | `{"error":"aprobados es requerido"}` |
-| 5 | Ruta | `aprobados` no es arreglo | 400 | `{"error":"aprobados debe ser un arreglo"}` |
-| 6 | Ruta | Algún elemento no es string | 400 | `{"error":"aprobados debe contener solo cadenas"}` |
-| 7 | Ruta | Algún elemento no cumple `^[A-Z0-9]{5,6}$` | 400 | `{"error":"aprobados contiene códigos con formato inválido"}` |
-| 8 | Ruta | Set deduplicado > 500 elementos | 400 | `{"error":"aprobados excede el límite permitido"}` |
+| # | Capa | Condición | HTTP | Cuerpo | Requisito |
+| --- | --- | --- | --- | --- | --- |
+| 1 | `express.json` | Content-Type JSON y cuerpo mayor a 4 KB | 413 | `{"error":"solicitud demasiado grande"}` | 3.1 |
+| 2 | `express.json` | Content-Type JSON y cuerpo que no es JSON válido | 400 | `{"error":"body inválido"}` | 2.1 |
+| 3 | Ruta | `Content-Type` ausente o distinto de `application/json` (`!req.is('application/json')`) | 415 | `{"error":"content-type debe ser application/json"}` | 2.2 |
+| 4 | Ruta | Campo `aprobados` ausente | 400 | `{"error":"aprobados es requerido"}` | 2.3 |
+| 5 | Ruta | `aprobados` no es un arreglo (incluye `null`) | 400 | `{"error":"aprobados debe ser un arreglo"}` | 2.4 |
+| 6 | Ruta | Algún elemento no es una cadena | 400 | `{"error":"aprobados debe contener solo cadenas"}` | 2.5 |
+| 7 | Ruta | Algún elemento no cumple `^[A-Z0-9]{5,6}$` | 400 | `{"error":"aprobados contiene códigos con formato inválido"}` | 2.6 |
 
-**Notas:**
+Notas:
 
-- El middleware `bodyLimit` se implementa con `express.json({ limit: '4kb' })` más un manejador de error intermedio que convierte el error de Express a 413 con el cuerpo exacto.
-- La validación de formato (fila 7) **no incluye el valor recibido** en el mensaje (Requisito 2.6 y defensa contra reflexión de entrada).
-- El límite de 500 (fila 8) se aplica **después** de deduplicar con `Set`.
-
-### Decisiones sobre casos no cubiertos explícitamente
-
-| Caso | Decisión | Justificación |
-|------|----------|---------------|
-| Duplicados en `aprobados` | Se deduplicar silenciosamente con `Set` antes de la validación de longitud. | Duplicados no cambian el resultado; contarlos penalizaría al alumno que repitió un código por error. |
-| Códigos no existentes en el catálogo | Se ignoran. | El endpoint responde qué se puede matricular, no valida el historial académico. Códigos desconocidos no habilitan ni deshabilitan ningún curso real. |
-| Lista vacía `[]` | Es válida; devuelve los cursos sin prerequisitos. | Caso base correcto: sin aprobar nada, solo los cursos de entrada están disponibles. |
-| Orden de la respuesta | Se devuelve en el orden de `listar()` (ciclo ascendente, estable). | El catálogo ya está ordenado por ciclo; no requiere ordenamiento adicional. |
-| `aprobados: null` | Tratado como "no es arreglo" → 400 `"aprobados debe ser un arreglo"`. | `Array.isArray(null) === false`; coherente con la validación de tipo. |
-
----
-
-## Correctness Properties
-
-*Una propiedad es una característica o comportamiento que debe mantenerse verdadero en todas las ejecuciones válidas del sistema — esencialmente, un enunciado formal sobre lo que el sistema debe hacer. Las propiedades sirven como puente entre las especificaciones legibles por humanos y las garantías de corrección verificables por máquina.*
-
-Se usa **fast-check** (agregado como `devDependency`) para los property tests. Es la biblioteca de PBT más usada en el ecosistema JavaScript/Jest, con generadores que producen subconjuntos aleatorios de IDs del catálogo, strings con formatos arbitrarios y arreglos mixtos — exactamente los tipos de entrada que ejercen los invariantes de este endpoint. No va a producción.
-
-### Property 1: Corrección de inclusión de cursos habilitados
-
-*Para cualquier* subconjunto válido de códigos de cursos aprobados, todo curso del catálogo cuyo `id` no esté en `aprobados` y cuyos todos los códigos de prerequisito sí estén en `aprobados` (incluyendo el caso vacío de prerequisitos) DEBE aparecer en el arreglo de respuesta.
-
-**Validates: Requirements 1.1, 1.2, 1.3**
-
-### Property 2: Exclusión de cursos ya aprobados
-
-*Para cualquier* subconjunto válido de códigos de cursos aprobados, ningún curso cuyo `id` aparezca en `aprobados` DEBE estar presente en el arreglo de respuesta.
-
-**Validates: Requirements 1.4**
-
-### Property 3: Rechazo de elementos no-string con mensaje exacto
-
-*Para cualquier* arreglo `aprobados` que contenga al menos un elemento que no sea una cadena de texto (número, booleano, `null`, objeto), el endpoint DEBE responder 400 con `{"error":"aprobados debe contener solo cadenas"}`.
-
-**Validates: Requirements 2.5**
-
-### Property 4: Rechazo de códigos con formato inválido sin reflejar el valor recibido
-
-*Para cualquier* arreglo `aprobados` que contenga al menos un elemento que no cumpla el patrón `^[A-Z0-9]{5,6}$`, el endpoint DEBE responder 400 con `{"error":"aprobados contiene códigos con formato inválido"}` y el cuerpo de la respuesta NO DEBE contener el valor del elemento inválido.
-
-**Validates: Requirements 2.6**
-
-### Property 5: Respuestas 500 sin información interna
-
-*Para cualquier* error no controlado lanzado durante el procesamiento de `POST /habilitados` (con cualquier mensaje, ruta de archivo o traza de pila), la respuesta DEBE ser 500 con `{"error":"error interno"}` y el cuerpo NO DEBE contener las cadenas `"stack"`, `" at "`, `".js"` ni patrones de ruta de archivo.
-
-**Validates: Requirements 4.1, 4.2**
+- `express.json` solo lee el cuerpo cuando el `Content-Type` es JSON; con otro tipo lo deja pasar con `req.body = {}`. Por eso el 415 se comprueba en la ruta y no lo genera el parser.
+- Con `strict: true` (valor por defecto), el parser rechaza como JSON inválido los cuerpos que no son objeto ni arreglo (por ejemplo `"x"`, `5` o `null`). Un arreglo en la raíz llega a la ruta y se responde "aprobados es requerido".
+- Ningún mensaje de error incluye el valor recibido ni el texto de la excepción original.
 
 ---
 
 ## Error Handling
 
-### Errores de validación (400 / 413 / 415)
-
-Todos los errores de validación se generan dentro de `src/routes/habilitados.js` antes de llamar a `repositorio.js`. Se devuelven con `res.status(N).json({ error: '...' })` usando los mensajes exactos del Requisito 2.
-
-### Error de tamaño de body (413)
-
-El middleware `bodyLimit` captura el error que lanza `express.json` cuando el cuerpo supera el límite configurado. Se identifica por `err.type === 'entity.too.large'` o `err.status === 413` y se responde con el cuerpo `{"error":"solicitud demasiado grande"}` antes de que el error llegue al `errorHandler` global.
-
-### Content-Type incorrecto (415)
-
-Cuando `express.json()` recibe una solicitud sin `Content-Type: application/json`, lanza un error con `err.status === 415` o `err.type === 'entity.parse.failed'`. Se intercepta con un manejador de error intermedio inmediatamente después del middleware `express.json({ type: ... })` configurado para solo parsear `application/json`. Si el Content-Type no coincide, se responde 415 con `{"error":"content-type debe ser application/json"}`.
-
-### Errores no controlados (500)
-
-Cualquier excepción no capturada en la ruta se propaga a través de `next(err)` y llega al `errorHandler` global ya registrado en `app.js`, que responde `500 {"error":"error interno"}` sin exponer stack traces ni rutas de archivo.
+- `express.json({ limit: '4kb' })` en `src/app.js` reemplaza al `express.json()` actual.
+- El `errorHandler` global traduce según `err.type`:
+  - `entity.too.large` → 413 `{"error":"solicitud demasiado grande"}`
+  - `entity.parse.failed` → 400 `{"error":"body inválido"}`
+  - cualquier otro error → 500 `{"error":"error interno"}`
+- La respuesta 500 nunca incluye `err.message`, `err.stack` ni rutas. El detalle completo solo se escribe en el log del servidor con `console.error`.
+- Si `res.headersSent` es verdadero, el manejador delega con `next(err)`.
 
 ---
 
 ## Testing Strategy
 
-### Enfoque dual
-
-- **Pruebas de ejemplo** (Supertest + Jest): verifican comportamientos específicos, casos borde y el contrato HTTP completo.
-- **Pruebas de propiedad** (fast-check + Jest): verifican invariantes universales con 100 iteraciones aleatorias por propiedad.
-
-### Pruebas de integración (Supertest)
+Tests con Jest y supertest sobre `src/app.js` (sin levantar el servidor), en `tests/habilitados.test.js`. Cada criterio de aceptación tiene al menos un test. Para comparar la respuesta se usa el conjunto de `id`, no el orden.
 
 | ID | Descripción | Requisito |
-|----|-------------|-----------|
-| T1.1 | `POST /habilitados` con `aprobados: []` devuelve 200 con cursos sin prerequisitos | 1.1, 1.2 |
-| T1.2 | `aprobados: ["1INF25","1INF27","1INF49"]` devuelve exactamente 27 cursos incluyendo `1INF29`, `1INF30`, `1INF31`, `1INF32` | 1.5 |
-| T1.3 | El curso `1INF25` no aparece en la respuesta cuando está en `aprobados` | 1.4 |
-| T2.1 | Body con JSON inválido → 400 `{"error":"body inválido"}` | 2.1 |
-| T2.2 | Sin `Content-Type: application/json` → 415 | 2.2 |
-| T2.3 | Body `{"otro": []}` → 400 `{"error":"aprobados es requerido"}` | 2.3 |
-| T2.4 | `aprobados: "1INF25"` → 400 `{"error":"aprobados debe ser un arreglo"}` | 2.4 |
-| T2.5 | `aprobados: [123]` → 400 `{"error":"aprobados debe contener solo cadenas"}` | 2.5 |
-| T2.6 | `aprobados: ["minusc"]` → 400 con mensaje de formato inválido, sin `"minusc"` en el body | 2.6 |
-| T3.1 | Body de 4 097 bytes → 413 `{"error":"solicitud demasiado grande"}` en ≤ 1 s | 3.1 |
-| T3.2 | 501 elementos únicos → 400 `{"error":"aprobados excede el límite permitido"}` | R3-DoS |
-| T3.3 | 1 000 repeticiones del mismo código → se deduplicar → size=1 → pasa validación | Decisión duplicados |
-| T4.1 | Mock de `repositorio.listar` lanzando error → 500 `{"error":"error interno"}` sin stack trace | 4.1, 4.2 |
+| --- | --- | --- |
+| T1.1 | `aprobados: []` devuelve 200 con exactamente los cursos del catálogo cuyo `prerequisites` está vacío | 1.1, 1.2 |
+| T1.2 | Cada elemento de la respuesta tiene solo los campos `id`, `name`, `credits`, `cycle` y `type` | 1.1 |
+| T1.3 | Un curso con prerequisitos es incluido cuando todos están en `aprobados` (por ejemplo `1INF30` con `["1INF25"]`) y excluido cuando falta alguno | 1.3 |
+| T1.4 | Un código que está en `aprobados` no aparece en la respuesta aunque sus prerequisitos estén cumplidos | 1.4 |
+| T1.5 | `["1INF25","1INF27","1INF49"]` devuelve exactamente 27 cursos, incluidos `1INF29`, `1INF30`, `1INF31` y `1INF32` | 1.5 |
+| T1.6 | Para varios conjuntos fijos de aprobados (vacío, todo el ciclo 5, todos los cursos), la respuesta coincide con un cálculo independiente hecho en el test; con todos aprobados la respuesta es `[]` | 1.1 a 1.4 |
+| T1.7 | Duplicados y códigos bien formados que no existen en el catálogo (por ejemplo `"ZZZ999"`) no cambian el resultado ni producen error | Decisiones |
+| T2.1 | Cuerpo `{"aprobados":` (JSON roto) con Content-Type JSON → 400 `body inválido` | 2.1 |
+| T2.2 | `Content-Type: text/plain` → 415 | 2.2 |
+| T2.3 | `{"otro": []}` → 400 `aprobados es requerido` | 2.3 |
+| T2.4 | `{"aprobados": "1INF25"}` → 400 `aprobados debe ser un arreglo` (hallazgo 3); también `null` y un objeto | 2.4 |
+| T2.5 | `{"aprobados": [123]}` → 400 `aprobados debe contener solo cadenas`; también `null`, booleano y objeto | 2.5 |
+| T2.6 | `{"aprobados": ["minusc"]}` y `["1INF2"]` → 400 formato inválido | 2.6 |
+| T2.7 | `{"aprobados": ["1INF30<script>"]}` → 400 formato inválido y el cuerpo de la respuesta no contiene `script` ni `<` (hallazgo 2) | 2.6 |
+| T3.1 | Cuerpo de 4 097 bytes → 413 `solicitud demasiado grande` en 1 s o menos | 3.1 |
+| T3.2 | `aprobados` con 5 000 códigos → 413 en 1 s o menos (hallazgo 1) | 3.1 |
+| T3.3 | Cuerpo válido de menos de 4 KB (por ejemplo 100 códigos) → 200 | 3.1 |
+| T4.1 | `jest.spyOn(repositorio, 'listar')` lanzando un error → 500 `{"error":"error interno"}` | 4.1 |
+| T4.2 | El error simulado en T4.1 usa el mensaje `C:\apps\malla\src\data\repositorio.js` y un stack; el cuerpo de la respuesta no contiene `stack`, ` at `, `.js` ni `C:\` | 4.2 |
+| T4.3 | JSON roto (T2.1) y cuerpo grande (T3.1) no producen 500 | 4.1 |
 
-### Pruebas de propiedad (fast-check)
+El Requisito 5.1 (cobertura) no se verifica con un test sino con el gate de cobertura de CI (ver más abajo).
 
-| ID | Propiedad | Requisito |
-|----|-----------|-----------|
-| P1 | Para 100 subconjuntos aleatorios de IDs del catálogo: todo curso elegible aparece en la respuesta | 1.1, 1.2, 1.3 |
-| P2 | Para 100 subconjuntos aleatorios: ningún ID de `aprobados` aparece en la respuesta | 1.4 |
-| P3 | Para 100 arreglos con al menos un no-string: siempre 400 con mensaje exacto | 2.5 |
-| P4 | Para 100 arreglos con al menos un string de formato inválido: siempre 400, body sin el valor inválido | 2.6 |
-| P5 | Para 100 errores mockeados con distintos mensajes/stacks: siempre 500 y body sin patrones internos | 4.1, 4.2 |
+---
 
-### Configuración
+## Quality y security gates (CI)
 
-```js
-// fast-check: mínimo 100 iteraciones por property test
-fc.assert(fc.asyncProperty(...), { numRuns: 100 });
+Cada requisito no funcional queda verificado por un gate o por tests, y la evidencia se registra en `TRAZABILIDAD.md`.
 
-// Etiqueta de trazabilidad en cada test de propiedad:
-// Feature: habilitados, Property N: <texto de la propiedad>
-```
+| Gate | Herramienta | Umbral | Bloquea / avisa | Etapa | Razón |
+| --- | --- | --- | --- | --- | --- |
+| Cobertura (Req. 5.1) | `jest --coverage` con `coverageThreshold` global en `jest.config.js` | 80 % de líneas en `src/` (excluye `src/server.js`) | Bloquea | Pull request y main | Lo exige la política de TI. Corre en el PR para dar feedback antes del merge y en main para detectar regresiones. Un umbral por archivo no se usa porque el gate de Jest mide el global y no distingue archivos nuevos |
+| SCA | `npm audit --audit-level=high`, incluye devDependencies | 0 vulnerabilidades high o critical | Bloquea. Las moderate y low solo se reportan, sin fallar | Pull request, main y cron semanal | La política de TI prohíbe high y critical. En el PR frena el merge. El cron semanal detecta CVE nuevos que aparecen sin que cambie el código. Las devDependencies se incluyen porque Jest y supertest se ejecutan en el runner de CI |
+| Detección de secretos | gitleaks con versión fija, escaneo del historial completo (`gitleaks git`, checkout con `fetch-depth: 0`) | Cualquier hallazgo | Bloquea | Pull request y main | Un secreto borrado en un commit posterior sigue expuesto en el historial, y una sola coincidencia obliga a rotar la clave, por eso no hay umbral. Se evita `gitleaks-action` porque por defecto solo escanea los commits del push o del PR, y un secreto ya presente en `main` no se vería |
+| SAST (extra, opcional) | CodeQL para JavaScript | Alertas de severidad alta | Avisa (reporta en el PR y en la pestaña Security) | Pull request, main y cron semanal | Detecta patrones inseguros en el código propio (inyección, XSS). Avisa y no bloquea porque puede dar falsos positivos que requieren triage antes de decidir bloquear |
 
-### Quality gates (CI)
+### Decisiones sobre los gates
 
-| Gate | Herramienta | Umbral | Acción si falla |
-|------|-------------|--------|-----------------|
-| Cobertura de líneas | Jest `--coverage` + `coverageThreshold` en `jest.config.js` | ≥ 80 % en `src/` | Bloquea el pipeline |
-| Análisis de composición (SCA) | `npm audit --audit-level=high` | 0 vulnerabilidades high/critical | Bloquea el pipeline |
-| Detección de secretos | `gitleaks/gitleaks-action@v2` | 0 secretos detectados | Bloquea el pipeline |
+- **Fingerprint histórico.** La clave `CATALOGO_API_KEY` está en el commit `7506fec`. Aun reemplazada en el archivo, el escaneo del historial completo seguirá detectándola. La corrección es: rotar la clave, reemplazar el valor en `config/ejemplo.env` por un placeholder y registrar el fingerprint en `.gitleaksignore` con un comentario que indique la razón (clave de ejemplo ya rotada).
+- **`lodash`.** Se sube a `4.18.1`. Solo la usa `src/util/formato.js`, que la aplicación no importa.
+- **`src/util/formato.js`.** Se mide la cobertura después de implementar. Si baja del 80 %, se agrega `tests/formato.test.js` (funciones puras, sin lógica nueva) en lugar de excluir el archivo de la cobertura, porque excluirlo ocultaría código sin probar.
+- **Disparadores de `ci.yml`.** `push` a `main`, `pull_request` a `main` y `schedule` semanal. El cron solo ejecuta el job de SCA.
 
-Ninguno de los tres gates agrega una dependencia nueva a `package.json`.
+---
 
-### Consideraciones de rendimiento y seguridad
+## Decisiones sobre casos no cubiertos por el pedido
 
-**Límite de 4 KB:** Un arreglo de 500 cadenas de 6 caracteres ocupa aproximadamente 4 500 bytes en JSON. El límite cubre cualquier solicitud legítima con margen razonable. Payloads mayores solo surgen de clientes maliciosos intentando agotar recursos del servidor (DoS).
+| Caso | Decisión | Justificación |
+| --- | --- | --- |
+| Códigos duplicados en `aprobados` | Se ignoran (se tratan como conjunto) | No cambian el resultado; rechazarlos penaliza al alumno por un error inocuo. El tamaño máximo lo acota el límite de 4 KB |
+| Código con formato válido que no está en el catálogo | Se ignora | El alumno puede haber aprobado cursos de Estudios Generales (ciclos 1 a 4), que están fuera del alcance de `product.md`. Esos códigos no afectan ningún requisito del catálogo |
+| `aprobados: []` | 200 con los cursos sin prerequisitos | Es lo que dicta el pedido: un curso sin requisitos está habilitado |
+| Código en minúsculas (`1inf25`) | 400 por formato, sin normalizar | Mantiene el patrón del Requisito 2.6 estricto y la entrada predecible |
+| Campos extra en el body | Se ignoran | Solo importa `aprobados` |
+| Forma de cada curso en la respuesta | `id`, `name`, `credits`, `cycle`, `type`, sin `prerequisites` | Es la misma que `GET /cursos` |
+| Orden de la respuesta | El orden de `repositorio.listar()`: ciclo ascendente y electivos (`cycle: null`) al final | Es determinista y no requiere ordenar |
+| Electivos (`cycle: null`) | Se incluyen si cumplen la condición | Forman parte del catálogo |
+| Límite de elementos de `aprobados` | No hay un límite propio; lo acota el límite de 4 KB | Con códigos de al menos 5 caracteres caben unos 500 elementos como máximo, y recorrer 87 cursos contra ese conjunto es acotado. Un segundo límite no estaría en los requisitos |
+| Cuerpo que no es objeto ni arreglo (`"x"`, `5`, `null`) | 400 `body inválido` | El parser con `strict: true` lo rechaza como JSON inválido |
 
-**Límite de 500 elementos:** El catálogo tiene 87 cursos. El límite es más de cinco veces el tamaño del catálogo, por lo que nunca afecta a usuarios legítimos. Permite rechazar solicitudes abusivas en O(1) antes de iterar sobre el catálogo.
+## Consideraciones de seguridad y rendimiento
 
-**Sin reflexión de entrada en errores:** El Requisito 2.6 prohíbe reflejar el valor recibido en mensajes de error. Esto evita ataques de reflected XSS en clientes que rendericen respuestas JSON sin escapar y previene que el error funcione como oráculo para enumerar patrones de validación.
+- **Sin reflexión de entrada.** Ningún mensaje de error incluye el valor recibido: evita XSS reflejado en clientes que rendericen el JSON sin escapar, y evita que el error sirva como oráculo para probar patrones.
+- **Entrada acotada.** El límite de 4 KB se aplica antes de parsear el JSON, así que una carga grande no consume CPU ni memoria.
+- **Errores opacos.** El cliente nunca recibe stack traces ni rutas; el detalle solo se registra en el servidor.
+- **Complejidad.** El cálculo es O(C × P), con C = 87 cursos y P = prerequisitos por curso, sobre un `Set` con búsqueda O(1).
 
-### Dependencias añadidas
+## Dependencias
 
-| Paquete | Tipo | Versión mínima | Justificación |
-|---------|------|---------------|---------------|
-| `fast-check` | `devDependency` | ≥ 3.x | Biblioteca de property-based testing para los 5 property tests del diseño. No va a producción. |
+No se agregan dependencias nuevas. Los gates usan `npm audit` (incluido en npm), un binario de gitleaks con versión fija y, si se hace el extra, la acción oficial de CodeQL de GitHub. Se usa el `supertest` y el `jest` que ya existen.
