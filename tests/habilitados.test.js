@@ -526,7 +526,7 @@ describe('T3.2 — aprobados con 5 000 códigos devuelve 413', () => {
   test(
     '5000 códigos válidos superan 4 KB y devuelven 413 en ≤1000 ms',
     async () => {
-      const aprobados = Array.from({ length: 5000 }, (_, i) => 'A' + String(i).padStart(4, '0'));
+      const aprobados = Array.from({ length: 5000 }, (_, i) => 'A' + String(i).padStart(5, '0'));
       const body = JSON.stringify({ aprobados });
 
       const start = Date.now();
@@ -551,7 +551,7 @@ describe('T3.3 — Body válido bajo 4 KB devuelve 200', () => {
   test(
     '100 códigos bien formados (body <4 KB) devuelven 200',
     async () => {
-      const aprobados = Array.from({ length: 100 }, (_, i) => 'A' + String(i).padStart(4, '0'));
+      const aprobados = Array.from({ length: 100 }, (_, i) => 'A' + String(i).padStart(5, '0'));
       const body = JSON.stringify({ aprobados });
 
       // Confirm the body is actually under 4096 bytes

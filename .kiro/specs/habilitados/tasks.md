@@ -61,7 +61,7 @@ Implementar `POST /habilitados` con sus validaciones de seguridad y los gates de
     - _Requisitos: 2.1, 2.2, 2.3, 2.4, 2.5, 2.6_
   - [x] 5.3 Requisito 3 (T3.1 a T3.3)
     - T3.1: cuerpo mayor a 4 096 bytes, por ejemplo `JSON.stringify({ aprobados: [], relleno: 'x'.repeat(4097) })` → 413 `solicitud demasiado grande` en 1 s o menos.
-    - T3.2: `aprobados` con 5 000 códigos válidos, por ejemplo `Array.from({ length: 5000 }, (_, i) => 'A' + String(i).padStart(4, '0'))` → 413 en 1 s o menos.
+    - T3.2: `aprobados` con 5 000 códigos válidos, por ejemplo `Array.from({ length: 5000 }, (_, i) => 'A' + String(i).padStart(5, '0'))` → 413 en 1 s o menos.
     - T3.3: cuerpo válido de unos 100 códigos (menos de 4 KB) → 200.
     - _Requisitos: 3.1_
   - [x] 5.4 Requisito 4 (T4.1 a T4.3)
@@ -82,23 +82,23 @@ Implementar `POST /habilitados` con sus validaciones de seguridad y los gates de
   - Ejecutar `npm test`: los tests de T2.1, T3.x y T4.3 pasan; los demás siguen en rojo.
   - _Requisitos: 2.1, 3.1, 4.1, 4.2_
 
-- [ ] 7. Implementar `src/routes/habilitados.js`
-  - [ ] 7.1 Crear el router Express y `validarAprobados(body)`
+- [x] 7. Implementar `src/routes/habilitados.js`
+  - [x] 7.1 Crear el router Express y `validarAprobados(body)`
     - `validarAprobados(body)` solo recibe el body y devuelve `{ ok: true, aprobados }` o `{ ok: false, status, error }`. Valida, en este orden:
       1. `aprobados` ausente → 400 `aprobados es requerido`
       2. `aprobados` no es arreglo (incluye `null`) → 400 `aprobados debe ser un arreglo`
       3. algún elemento no es string → 400 `aprobados debe contener solo cadenas`
-      4. algún elemento no cumple `/^[A-Z0-9]{5,6}$/` → 400 `aprobados contiene códigos con formato inválido`, sin incluir el valor recibido.
+      4. algún elemento no cumple `/^[A-Z0-9]{6}$/` → 400 `aprobados contiene códigos con formato inválido`, sin incluir el valor recibido.
     - El 413 y el 400 por JSON inválido los produce `express.json` y el `errorHandler`; no se repiten aquí.
     - _Requisitos: 2.3, 2.4, 2.5, 2.6_
-  - [ ] 7.2 Implementar `calcularHabilitados(aprobadosSet, todos)`
+  - [x] 7.2 Implementar `calcularHabilitados(aprobadosSet, todos)`
     ```js
     return todos
       .filter(c => !aprobadosSet.has(c.id) && c.prerequisites.every(p => aprobadosSet.has(p)))
       .map(c => ({ id: c.id, name: c.name, credits: c.credits, cycle: c.cycle, type: c.type }));
     ```
     - _Requisitos: 1.1, 1.2, 1.3, 1.4, 1.5_
-  - [ ] 7.3 Conectar el handler `POST /` y montar el router en `src/app.js`
+  - [x] 7.3 Conectar el handler `POST /` y montar el router en `src/app.js`
     - Primero comprobar `req.is('application/json')`; si no se cumple → 415 `content-type debe ser application/json`.
     - Luego `validarAprobados(req.body)`; si falla, responder `res.status(status).json({ error })`.
     - Construir `new Set(aprobados)`, llamar a `calcularHabilitados(set, repositorio.listar())` y responder 200.
@@ -108,7 +108,7 @@ Implementar `POST /habilitados` con sus validaciones de seguridad y los gates de
     - _Requisitos: 1.1, 1.2, 1.3, 1.4, 1.5, 2.2, 4.1, 4.2_
   - **Evidencia:** subir y guardar el link del run en que los tests de la tarea 5 pasan a verde.
 
-- [ ] 8. Punto de control de cobertura
+- [x] 8. Punto de control de cobertura
   - Ejecutar `npm test -- --coverage` y confirmar que las líneas de `src/` están en 80 % o más y que `GET /health`, `GET /cursos` y `GET /cursos/:codigo` siguen funcionando.
   - Si `src/util/formato.js` deja la cobertura global por debajo de 80 %, crear `tests/formato.test.js` con tests de sus funciones puras, sin lógica nueva, en lugar de excluir el archivo.
   - _Requisitos: 5.1_

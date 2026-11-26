@@ -165,7 +165,7 @@ Se aplican en este orden. El primer fallo detiene el procesamiento y devuelve es
 | 4 | Ruta | Campo `aprobados` ausente | 400 | `{"error":"aprobados es requerido"}` | 2.3 |
 | 5 | Ruta | `aprobados` no es un arreglo (incluye `null`) | 400 | `{"error":"aprobados debe ser un arreglo"}` | 2.4 |
 | 6 | Ruta | Algún elemento no es una cadena | 400 | `{"error":"aprobados debe contener solo cadenas"}` | 2.5 |
-| 7 | Ruta | Algún elemento no cumple `^[A-Z0-9]{5,6}$` | 400 | `{"error":"aprobados contiene códigos con formato inválido"}` | 2.6 |
+| 7 | Ruta | Algún elemento no cumple `^[A-Z0-9]{6}$` | 400 | `{"error":"aprobados contiene códigos con formato inválido"}` | 2.6 |
 
 Notas:
 

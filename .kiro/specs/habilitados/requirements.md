@@ -46,7 +46,7 @@ La API Malla INF necesita un endpoint que indique a un alumno qué cursos puede 
 
 2.5 SI algún elemento de `aprobados` no es una cadena, ENTONCES EL API DEBE responder 400 con `{"error": "aprobados debe contener solo cadenas"}`.
 
-2.6 SI algún elemento de `aprobados` no cumple el patrón `^[A-Z0-9]{5,6}$`, ENTONCES EL API DEBE responder 400 con `{"error": "aprobados contiene códigos con formato inválido"}`, y el cuerpo de la respuesta NO DEBE contener el valor enviado.
+2.6 SI algún elemento de `aprobados` no cumple el patrón `^[A-Z0-9]{6}$`, ENTONCES EL API DEBE responder 400 con `{"error": "aprobados contiene códigos con formato inválido"}`, y el cuerpo de la respuesta NO DEBE contener el valor enviado.
 
 ### Requisito 3: Límite de tamaño de entrada (seguridad — prevención de DoS)
 
