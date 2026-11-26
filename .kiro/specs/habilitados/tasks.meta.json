@@ -1,0 +1,168 @@
+{
+  "pbtResults": {},
+  "executionHistory": {
+    "1. Agregar los gates de SCA y detección de secretos a `.github/workflows/ci.yml`": [
+      {
+        "executionId": "122ac878-59a1-4f5a-a8a5-cb3a4664de51",
+        "chatSessionId": "sess_7dec2cb9-0710-4455-91ed-4d9a8e9859f5",
+        "timestamp": 1795730985821
+      },
+      {
+        "executionId": "122ac878-59a1-4f5a-a8a5-cb3a4664de51",
+        "chatSessionId": "sess_7dec2cb9-0710-4455-91ed-4d9a8e9859f5",
+        "timestamp": 1795731180406
+      }
+    ],
+    "2. Agregar el umbral de cobertura": [
+      {
+        "executionId": "29f0a0d5-12f8-4b40-8bf7-82c64380c6da",
+        "chatSessionId": "sess_010de688-3b77-4d4c-a35d-9ab9c46937e5",
+        "timestamp": 1795731219957
+      },
+      {
+        "executionId": "29f0a0d5-12f8-4b40-8bf7-82c64380c6da",
+        "chatSessionId": "sess_010de688-3b77-4d4c-a35d-9ab9c46937e5",
+        "timestamp": 1795731304334
+      }
+    ],
+    "3. Corregir la vulnerabilidad de `lodash`": [
+      {
+        "executionId": "3b40ebae-ddd3-4755-b572-8824fdeaef33",
+        "chatSessionId": "sess_976bcb92-fa4e-47ba-a8d0-4bcbaf448214",
+        "timestamp": 1795731320236
+      },
+      {
+        "executionId": "3b40ebae-ddd3-4755-b572-8824fdeaef33",
+        "chatSessionId": "sess_976bcb92-fa4e-47ba-a8d0-4bcbaf448214",
+        "timestamp": 1795731401161
+      }
+    ],
+    "4. Corregir el secreto en el repositorio": [
+      {
+        "executionId": "ade2e713-a4fa-4187-a789-291b9b0ca1c7",
+        "chatSessionId": "sess_1c3b09be-6504-4486-af50-568987044652",
+        "timestamp": 1795731422754
+      },
+      {
+        "executionId": "ade2e713-a4fa-4187-a789-291b9b0ca1c7",
+        "chatSessionId": "sess_1c3b09be-6504-4486-af50-568987044652",
+        "timestamp": 1795731521135
+      }
+    ],
+    "4.1 Reemplazar el valor de `CATALOGO_API_KEY` en `config/ejemplo.env` por el placeholder `YOUR_API_KEY_HERE`.": [
+      {
+        "executionId": "56e97ea2-a5e6-404a-a1ff-7d426e837f52",
+        "chatSessionId": "sess_b0813ae5-e57a-420d-a554-10960580ebe9",
+        "timestamp": 1795731569651
+      },
+      {
+        "executionId": "56e97ea2-a5e6-404a-a1ff-7d426e837f52",
+        "chatSessionId": "sess_b0813ae5-e57a-420d-a554-10960580ebe9",
+        "timestamp": 1795731583297
+      }
+    ],
+    "4.2 Ejecutar gitleaks en local (`gitleaks git --redact -v .`) y copiar, tal como lo imprime, el campo `Fingerprint` del hallazgo del commit `7506fec`. Tiene la forma `<sha completo>:config/ejemplo.env:<regla>:<línea>`.": [
+      {
+        "executionId": "6accebac-c2df-4d43-ad6c-492c87335ee4",
+        "chatSessionId": "sess_d4a0c1a9-500d-46f7-99c6-755c0a01d2e8",
+        "timestamp": 1795731625765
+      },
+      {
+        "executionId": "6accebac-c2df-4d43-ad6c-492c87335ee4",
+        "chatSessionId": "sess_d4a0c1a9-500d-46f7-99c6-755c0a01d2e8",
+        "timestamp": 1795731729464
+      }
+    ],
+    "4.3 Crear `.gitleaksignore` en la raíz con ese fingerprint y, en la línea anterior, un comentario con la razón: clave de ejemplo del laboratorio, sustituida por placeholder. Si la clave fuera real, debe revocarse; no escribir que fue rotada si no se hizo.": [
+      {
+        "executionId": "4c61e1aa-e8f4-41da-84f0-73ccd46cbf45",
+        "chatSessionId": "sess_fc25b42d-1444-4127-93aa-d35af1b9c484",
+        "timestamp": 1795731740905
+      },
+      {
+        "executionId": "4c61e1aa-e8f4-41da-84f0-73ccd46cbf45",
+        "chatSessionId": "sess_fc25b42d-1444-4127-93aa-d35af1b9c484",
+        "timestamp": 1795731811348
+      }
+    ],
+    "5. Escribir `tests/habilitados.test.js` antes de implementar (deben fallar)": [
+      {
+        "executionId": "9e7e0bdc-df8f-424d-a313-9ce4b0e51b36",
+        "chatSessionId": "sess_97f9cdc4-35aa-4415-99f6-c30acc674fcc",
+        "timestamp": 1795731819771
+      },
+      {
+        "executionId": "9e7e0bdc-df8f-424d-a313-9ce4b0e51b36",
+        "chatSessionId": "sess_97f9cdc4-35aa-4415-99f6-c30acc674fcc",
+        "timestamp": 1795732053920
+      }
+    ],
+    "5.1 Requisito 1 (T1.1 a T1.7)": [
+      {
+        "executionId": "9e7e0bdc-df8f-424d-a313-9ce4b0e51b36",
+        "chatSessionId": "sess_97f9cdc4-35aa-4415-99f6-c30acc674fcc",
+        "timestamp": 1795731821688
+      },
+      {
+        "executionId": "9e7e0bdc-df8f-424d-a313-9ce4b0e51b36",
+        "chatSessionId": "sess_97f9cdc4-35aa-4415-99f6-c30acc674fcc",
+        "timestamp": 1795731896324
+      }
+    ],
+    "5.2 Requisito 2 (T2.1 a T2.7)": [
+      {
+        "executionId": "9e7e0bdc-df8f-424d-a313-9ce4b0e51b36",
+        "chatSessionId": "sess_97f9cdc4-35aa-4415-99f6-c30acc674fcc",
+        "timestamp": 1795731898485
+      },
+      {
+        "executionId": "9e7e0bdc-df8f-424d-a313-9ce4b0e51b36",
+        "chatSessionId": "sess_97f9cdc4-35aa-4415-99f6-c30acc674fcc",
+        "timestamp": 1795731951054
+      }
+    ],
+    "5.3 Requisito 3 (T3.1 a T3.3)": [
+      {
+        "executionId": "9e7e0bdc-df8f-424d-a313-9ce4b0e51b36",
+        "chatSessionId": "sess_97f9cdc4-35aa-4415-99f6-c30acc674fcc",
+        "timestamp": 1795731953008
+      },
+      {
+        "executionId": "9e7e0bdc-df8f-424d-a313-9ce4b0e51b36",
+        "chatSessionId": "sess_97f9cdc4-35aa-4415-99f6-c30acc674fcc",
+        "timestamp": 1795731995419
+      }
+    ],
+    "5.4 Requisito 4 (T4.1 a T4.3)": [
+      {
+        "executionId": "9e7e0bdc-df8f-424d-a313-9ce4b0e51b36",
+        "chatSessionId": "sess_97f9cdc4-35aa-4415-99f6-c30acc674fcc",
+        "timestamp": 1795731997486
+      },
+      {
+        "executionId": "9e7e0bdc-df8f-424d-a313-9ce4b0e51b36",
+        "chatSessionId": "sess_97f9cdc4-35aa-4415-99f6-c30acc674fcc",
+        "timestamp": 1795732053876
+      }
+    ],
+    "6. Configurar el límite de tamaño y el manejo de errores en `src/app.js`": [
+      {
+        "executionId": "18f7335d-e562-4a7b-a287-63de9c23ca61",
+        "chatSessionId": "sess_11e7b5ea-2c58-418d-9f33-60859ac99742",
+        "timestamp": 1795732082438
+      },
+      {
+        "executionId": "18f7335d-e562-4a7b-a287-63de9c23ca61",
+        "chatSessionId": "sess_11e7b5ea-2c58-418d-9f33-60859ac99742",
+        "timestamp": 1795732430030
+      }
+    ],
+    "7. Implementar `src/routes/habilitados.js`": [
+      {
+        "executionId": "9b4298b8-1975-488f-bd4a-9d4c526f3682",
+        "chatSessionId": "sess_cec61905-2a8a-40f7-af61-80272176bcce",
+        "timestamp": 1795732440243
+      }
+    ]
+  }
+}

@@ -11,7 +11,7 @@ El diseño responde a tres hallazgos de seguridad del prototipo anterior:
 | Hallazgo | Causa | Respuesta del diseño |
 | --- | --- | --- |
 | 1. 5 000 códigos dejaron el servicio sin responder 40 s | No había límite de tamaño | Límite de 4 KB en `express.json` → 413 (Requisito 3) |
-| 2. `1INF30<script>` provocó un 500 con stack trace y ruta | No se validaba el formato del código y el manejador de errores devolvía el stack | Validación `^[A-Z0-9]{5,6}$` → 400 sin reflejar el valor (Req. 2.6); 500 genérico sin detalles internos (Req. 4) |
+| 2. `1INF30<script>` provocó un 500 con stack trace y ruta | No se validaba el formato del código y el manejador de errores devolvía el stack | Validación `^[A-Z0-9]{6}$` → 400 sin reflejar el valor (Req. 2.6); 500 genérico sin detalles internos (Req. 4) |
 | 3. `{"aprobados": "1INF25"}` respondió 200 con resultados incorrectos | No se validaba el tipo | Validación de tipo del campo y de sus elementos → 400 (Req. 2.3 a 2.5) |
 
 ### Diagrama de secuencia

@@ -12,6 +12,7 @@ app.get('/health', (req, res) => {
 });
 
 app.use('/cursos', require('./routes/cursos'));
+app.use('/habilitados', require('./routes/habilitados'));
 
 // Middleware de manejo de errores no controlados (Requisitos 2.1, 3.1, 4.1, 4.2)
 // eslint-disable-next-line no-unused-vars
