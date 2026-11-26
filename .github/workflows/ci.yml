@@ -27,7 +27,7 @@ jobs:
         run: npm ci
 
       - name: Ejecutar pruebas
-        run: npm test
+        run: npm test -- --coverage
 
   sca:
     runs-on: ubuntu-latest
