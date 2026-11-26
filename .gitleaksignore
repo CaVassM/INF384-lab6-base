@@ -1,0 +1,3 @@
+# Clave de ejemplo del laboratorio en config/ejemplo.env. Valor sustituido por placeholder YOUR_API_KEY_HERE.
+# Si la clave fuera real, debe ser revocada. No fue rotada.
+7506fecff32b342baaa4aa5dcb595bb5ccc75634:config/ejemplo.env:generic-api-key:4
